@@ -23,9 +23,6 @@ jobs:
         with:
           python-version: "3.11"
         
-      - name: Install dependencies
-        run: uvx sync --all-extras --dev
-        
       - name: Run Ruff Linter
         run: uvx run ruff check .
 
