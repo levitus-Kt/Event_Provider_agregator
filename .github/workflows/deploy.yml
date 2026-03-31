@@ -33,7 +33,7 @@ jobs:
         run: uvx ruff format --check .
 
       - name: Run Pytest
-        run: uv run pytest src/tests/
+        run: uvx pytest src/tests/
 
   build:
     needs: lint
