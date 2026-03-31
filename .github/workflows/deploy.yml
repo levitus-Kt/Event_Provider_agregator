@@ -26,7 +26,10 @@ jobs:
       - name: Install dependencies and Run Tests
         run: uv sync --all-extras --dev
         env:
-          PYTHONPATH: src
+          PYTHONPATH: .
+       
+      - name: Check files
+        run: ls -R
         
       - name: Run Ruff Linter
         run: uvx ruff check .
@@ -35,7 +38,7 @@ jobs:
         run: uvx ruff format --check .
 
       - name: Run Pytest
-        run: uvx pytest src/tests/
+        run: uvx pytest tests/
 
   build:
     needs: lint
