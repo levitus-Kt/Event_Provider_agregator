@@ -34,7 +34,6 @@ class EventsPaginator:
                 self._next_cursor = parse_qs(parsed_url.query).get("cursor", [None])[0]
             else:
                 self._next_cursor = None
-            print(f"Requesting cursor: {self._next_cursor}")
             if not self._buffer:
                 raise StopAsyncIteration
 

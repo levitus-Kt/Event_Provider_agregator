@@ -1,6 +1,9 @@
 """Главное приложение FastAPI"""
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from uuid import UUID
 
 from dotenv import load_dotenv
@@ -10,17 +13,47 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # from src.app.worker.sync import run_sync_job
 from src.domain.schemas import (
     EventListResponse,
+    EventResponse,
     EventSchema,
+    RegistrationRequest,
+    RegistrationResponse,
     SeatListResponse,
 )
 from src.infrastructure.client import EventsProviderClient
 from src.infrastructure.database import get_db
 from src.infrastructure.paginator import EventsPaginator
 
+# Глобальная переменная для задачи
+sync_task = None
 load_dotenv()
 
 
-app = FastAPI()
+async def background_sync_worker():
+    while True:
+        try:
+            await run_sync_job()  # Ваша бизнес-логика синхронизации
+        except Exception as e:
+            print(f"Sync error: {e}")
+        # Спим 24 часа
+        await asyncio.sleep(86400)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: запускаем воркер
+    global sync_task
+    sync_task = asyncio.create_task(background_sync_worker())
+    yield
+    # Shutdown: отменяем воркер
+    if sync_task:
+        sync_task.cancel()
+        try:
+            await sync_task
+        except asyncio.CancelledError:
+            pass
+
+
+app = FastAPI(lifespan=lifespan)
 
 BASE_URL = os.getenv("BASE_URL")
 API_KEY = os.getenv("API_KEY")
@@ -52,10 +85,22 @@ async def get_event_list(
     if not events:
         raise HTTPException(status_code=404, detail="Events not found")
     return EventListResponse(
-        next=None,
-        previous=None,
         results=[EventSchema.model_validate(event) for event in events],
     )
+
+
+@app.get("/api/events/{event_id}", response_model=EventResponse)
+async def get_event_by_id(
+    event_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    client: EventsProviderClient = Depends(get_events_client),
+) -> EventResponse:
+    """Получить информацию о событии по ID"""
+
+    event = await client.get_event_by_id(event_id=event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return EventResponse.model_validate(event)
 
 
 @app.get(
@@ -69,11 +114,53 @@ async def get_seat_list(
 ) -> SeatListResponse:
     """Получить информацию о свободных местах для события"""
 
+    event = await client.get_event_by_id(event_id=event_id)
+
+    event_time = event.get("event_time")
+    if "published" not in event.get("status", ""):
+        raise HTTPException(status_code=400, detail="Event is not published")
+    if datetime.now(timezone.utc) > datetime.fromisoformat(event_time):
+        raise HTTPException(status_code=400, detail="Дата не может быть в прошлом")
+
     data = await client.get_seats(event_id=event_id)
     if not data:
         raise HTTPException(status_code=404, detail="Seats not found")
     return SeatListResponse(
         seats=[seat for seat in data.get("seats", [])],
+    )
+
+
+@app.post(
+    "/api/events/{event_id}/register/",
+    response_model=RegistrationResponse,
+)
+async def register_for_event(
+    event_id: UUID,
+    registration: RegistrationRequest,
+    db: AsyncSession = Depends(get_db),
+    client: EventsProviderClient = Depends(get_events_client),
+) -> RegistrationResponse:
+    """Зарегистрироваться на событие"""
+
+    event = await client.get_event_by_id(event_id=event_id)
+    event_time = event.get("event_time")
+
+    if "published" not in event.get("status", ""):
+        raise HTTPException(status_code=400, detail="Event is not published")
+    if datetime.now(timezone.utc) > datetime.fromisoformat(event_time):
+        raise HTTPException(status_code=400, detail="Дата не может быть в прошлом")
+
+    ticket_id = await client.register(
+        event_id=event_id,
+        first_name=registration.first_name,
+        last_name=registration.last_name,
+        email=registration.email,
+        seat=registration.seat,
+    )
+    if not ticket_id:
+        raise HTTPException(status_code=403, detail="Registration failed")
+    return RegistrationResponse(
+        ticket_id=ticket_id,
     )
 
 

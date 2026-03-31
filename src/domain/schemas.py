@@ -37,17 +37,31 @@ class EventSchema(BaseModel):
 
 
 class EventListResponse(BaseModel):
-    next: Optional[str]
-    previous: Optional[str]
     results: List[EventSchema]
 
 
+class EventResponse(BaseModel):
+    event: EventSchema
+
+    # @field_validator("created_at")
+    # @classmethod
+    # def check_future_date(cls, future: datetime) -> datetime:
+    #     # Приводим всё к UTC для честного сравнения
+    #     now = datetime.now(future.tzinfo) if future.tzinfo else datetime.now()
+    #     if future < now:
+    #         raise ValueError("Дата не может быть в прошлом")
+    #     return future
+
+
 class RegistrationRequest(BaseModel):
-    event_id: UUID
     first_name: str
     last_name: str
     email: EmailStr
     seat: str
+
+
+class RegistrationResponse(BaseModel):
+    ticket_id: UUID
 
 
 class SeatListResponse(BaseModel):

@@ -38,6 +38,19 @@ class EventsProviderClient(EventsProviderProtocol):
             data = response.json()
             return data
 
+    async def get_event_by_id(
+        self,
+        event_id: UUID,
+    ) -> dict:
+        """Получить информацию о событии по ID"""
+        async with httpx.AsyncClient() as client:
+            event = await client.get(
+                f"{self.base_url}/api/events/{event_id}/", headers=self.headers
+            )
+            if not event:
+                raise Exception(404, "Event not found")
+            return event.json()
+
     async def get_seats(
         self,
         event_id: UUID,
@@ -50,3 +63,21 @@ class EventsProviderClient(EventsProviderProtocol):
             )
             response.raise_for_status()
             return response.json()
+
+    async def register(
+        self, event_id: UUID, first_name: str, last_name: str, email: str, seat: str
+    ) -> str:
+        payload = {
+            "first_name": first_name,
+            "last_name": last_name,
+            "seat": seat,
+            "email": email,
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.base_url}/api/events/{event_id}/register/",
+                json=payload,
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            return response.json()["ticket_id"]
