@@ -27,10 +27,10 @@ jobs:
         run: uv sync --all-extras --dev
         
       - name: Run Ruff Linter
-        run: uv run ruff check .
-        
+        run: uv ruff check .
+
       - name: Run Ruff Format Check
-        run: uv run ruff format --check .
+        run: uv ruff format --check .
         
       - name: Run Pytest
         run: uv run pytest tests/

@@ -4,3 +4,8 @@ select = ["E", "F", "I"] # PEP8 + Imports
 
 [tool.ruff.isort]
 known-first-party = ["src"]
+
+[project]
+name = "Event Provider Aggregator"
+version = "0.1.0"
+requires-python = ">=3.11"
