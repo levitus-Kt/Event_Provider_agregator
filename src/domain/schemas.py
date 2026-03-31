@@ -64,5 +64,9 @@ class RegistrationResponse(BaseModel):
     ticket_id: UUID
 
 
+class UnregistrationRequest(BaseModel):
+    ticket_id: UUID
+
+
 class SeatListResponse(BaseModel):
     seats: List[str]

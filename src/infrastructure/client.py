@@ -81,3 +81,14 @@ class EventsProviderClient(EventsProviderProtocol):
             )
             response.raise_for_status()
             return response.json()["ticket_id"]
+
+    async def unregister(self, event_id: UUID, ticket_id: UUID) -> dict:
+        async with httpx.AsyncClient() as client:
+            response = await client.request(
+                method="DELETE",
+                url=f"{self.base_url}/api/events/{event_id}/unregister/",
+                json={"ticket_id": str(ticket_id)},
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            return {"success": True}

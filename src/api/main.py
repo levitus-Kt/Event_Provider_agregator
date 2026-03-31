@@ -1,8 +1,6 @@
 """Главное приложение FastAPI"""
 
-import asyncio
 import os
-from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -18,42 +16,16 @@ from src.domain.schemas import (
     RegistrationRequest,
     RegistrationResponse,
     SeatListResponse,
+    UnregistrationRequest,
 )
 from src.infrastructure.client import EventsProviderClient
 from src.infrastructure.database import get_db
 from src.infrastructure.paginator import EventsPaginator
 
-# Глобальная переменная для задачи
-sync_task = None
 load_dotenv()
 
 
-async def background_sync_worker():
-    while True:
-        try:
-            await run_sync_job()  # Ваша бизнес-логика синхронизации
-        except Exception as e:
-            print(f"Sync error: {e}")
-        # Спим 24 часа
-        await asyncio.sleep(86400)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup: запускаем воркер
-    global sync_task
-    sync_task = asyncio.create_task(background_sync_worker())
-    yield
-    # Shutdown: отменяем воркер
-    if sync_task:
-        sync_task.cancel()
-        try:
-            await sync_task
-        except asyncio.CancelledError:
-            pass
-
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 BASE_URL = os.getenv("BASE_URL")
 API_KEY = os.getenv("API_KEY")
@@ -133,6 +105,7 @@ async def get_seat_list(
 @app.post(
     "/api/events/{event_id}/register/",
     response_model=RegistrationResponse,
+    status_code=201,
 )
 async def register_for_event(
     event_id: UUID,
@@ -144,11 +117,14 @@ async def register_for_event(
 
     event = await client.get_event_by_id(event_id=event_id)
     event_time = event.get("event_time")
+    registration_deadline = event.get("registration_deadline")
 
     if "published" not in event.get("status", ""):
         raise HTTPException(status_code=400, detail="Event is not published")
     if datetime.now(timezone.utc) > datetime.fromisoformat(event_time):
         raise HTTPException(status_code=400, detail="Дата не может быть в прошлом")
+    if datetime.now(timezone.utc) > datetime.fromisoformat(registration_deadline):
+        raise HTTPException(status_code=400, detail="Регистрация закрыта")
 
     ticket_id = await client.register(
         event_id=event_id,
@@ -162,6 +138,31 @@ async def register_for_event(
     return RegistrationResponse(
         ticket_id=ticket_id,
     )
+
+
+@app.delete(
+    "/api/events/{event_id}/unregister/",
+    status_code=200,
+)
+async def unregister_from_event(
+    event_id: UUID,
+    unregistration: UnregistrationRequest,
+    db: AsyncSession = Depends(get_db),
+    client: EventsProviderClient = Depends(get_events_client),
+) -> dict:
+    """Отменить регистрацию на событие"""
+
+    event = await client.get_event_by_id(event_id=event_id)
+    event_time = event.get("event_time")
+
+    if datetime.now(timezone.utc) > datetime.fromisoformat(event_time):
+        raise HTTPException(status_code=400, detail="Дата не может быть в прошлом")
+
+    request = await client.unregister(
+        event_id=event_id,
+        ticket_id=unregistration.ticket_id,
+    )
+    return request
 
 
 @app.get("/api/health")
