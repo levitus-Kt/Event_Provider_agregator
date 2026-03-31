@@ -24,13 +24,13 @@ jobs:
           python-version: "3.11"
         
       - name: Run Ruff Linter
-        run: uvx run ruff check .
+        run: uvx ruff check .
 
       - name: Run Ruff Format Check
-        run: uvx run ruff format --check .
+        run: uvx ruff format --check .
 
       - name: Run Pytest
-        run: uvx run pytest tests/
+        run: uvx pytest tests/
 
   build:
     needs: lint
