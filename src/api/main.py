@@ -7,16 +7,15 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # from src.app.worker.sync import run_sync_job
-from src.domain.schemas import EventListResponse
+from src.domain.schemas import EventListResponse, EventSchema
 from src.infrastructure.client import EventsProviderClient
 from src.infrastructure.database import get_db
+from src.infrastructure.paginator import EventsPaginator
 
 load_dotenv()
 
-
 app = FastAPI()
 
-# Настройки для клиента (лучше вынести в env)
 BASE_URL = os.getenv("BASE_URL")
 API_KEY = os.getenv("API_KEY")
 
@@ -31,11 +30,29 @@ def get_events_client() -> EventsProviderClient:
 )
 async def get_event_list(
     changed_at: str = Query(..., description="Дата для фильтрации событий"),
+    # date_from: Optional[str] = Query(
+    #     datetime.now().astimezone(UTC), description="События после указанной даты"
+    # ),
+    # page: Optional[int] = Query(1, description="Номер страницы для пагинации"),
     db: AsyncSession = Depends(get_db),
     client: EventsProviderClient = Depends(get_events_client),
 ) -> EventListResponse:
     """Получить информацию о событиях"""
-    events = await client.get_events(changed_at=changed_at)
+
+    paginator = EventsPaginator(client, changed_at)
+    events = []
+    async for event in paginator:
+        events.append(event)
     if not events:
         raise HTTPException(status_code=404, detail="Events not found")
-    return EventListResponse.model_validate(events)
+    return EventListResponse(
+        next=None,
+        previous=None,
+        results=[EventSchema.model_validate(event) for event in events],
+    )
+
+
+@app.get("/api/health")
+async def get_health():
+    """Проверка работоспособности сервиса"""
+    return {"status": "ok"}
