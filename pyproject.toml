@@ -6,6 +6,6 @@ select = ["E", "F", "I"] # PEP8 + Imports
 known-first-party = ["src"]
 
 [project]
-name = "Event Provider Aggregator"
+name = "Event-Provider-Aggregator"
 version = "0.1.0"
 requires-python = ">=3.11"
