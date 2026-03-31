@@ -24,16 +24,16 @@ jobs:
           python-version: "3.11"
         
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uvx sync --all-extras --dev
         
       - name: Run Ruff Linter
-        run: uv ruff check .
+        run: uvx run ruff check .
 
       - name: Run Ruff Format Check
-        run: uv ruff format --check .
-        
+        run: uvx run ruff format --check .
+
       - name: Run Pytest
-        run: uv run pytest tests/
+        run: uvx run pytest tests/
 
   build:
     needs: lint
