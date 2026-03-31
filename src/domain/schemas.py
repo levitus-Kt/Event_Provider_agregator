@@ -48,3 +48,7 @@ class RegistrationRequest(BaseModel):
     last_name: str
     email: EmailStr
     seat: str
+
+
+class SeatListResponse(BaseModel):
+    seats: List[str]

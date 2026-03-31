@@ -1,18 +1,24 @@
 """Главное приложение FastAPI"""
 
 import os
+from uuid import UUID
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # from src.app.worker.sync import run_sync_job
-from src.domain.schemas import EventListResponse, EventSchema
+from src.domain.schemas import (
+    EventListResponse,
+    EventSchema,
+    SeatListResponse,
+)
 from src.infrastructure.client import EventsProviderClient
 from src.infrastructure.database import get_db
 from src.infrastructure.paginator import EventsPaginator
 
 load_dotenv()
+
 
 app = FastAPI()
 
@@ -49,6 +55,25 @@ async def get_event_list(
         next=None,
         previous=None,
         results=[EventSchema.model_validate(event) for event in events],
+    )
+
+
+@app.get(
+    "/api/events/{event_id}/seats/",
+    response_model=SeatListResponse,
+)
+async def get_seat_list(
+    event_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    client: EventsProviderClient = Depends(get_events_client),
+) -> SeatListResponse:
+    """Получить информацию о свободных местах для события"""
+
+    data = await client.get_seats(event_id=event_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Seats not found")
+    return SeatListResponse(
+        seats=[seat for seat in data.get("seats", [])],
     )
 
 

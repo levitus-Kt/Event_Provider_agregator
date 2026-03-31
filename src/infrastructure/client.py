@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 
 import httpx
 
@@ -36,3 +37,16 @@ class EventsProviderClient(EventsProviderProtocol):
             response.raise_for_status()
             data = response.json()
             return data
+
+    async def get_seats(
+        self,
+        event_id: UUID,
+    ) -> dict:
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/api/events/{event_id}/seats/",
+                headers=self.headers,
+            )
+            response.raise_for_status()
+            return response.json()

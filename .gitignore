@@ -2,3 +2,6 @@
 .idea/
 .env
 src/__pycache__/
+src/api/__pycache__/
+src/domain/__pycache__/
+src/infrastructure/__pycache__/
