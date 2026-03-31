@@ -1,0 +1,6 @@
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "I"] # PEP8 + Imports
+
+[tool.ruff.isort]
+known-first-party = ["src"]
