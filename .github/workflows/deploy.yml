@@ -25,6 +25,8 @@ jobs:
 
       - name: Install dependencies and Run Tests
         run: uv sync --all-extras --dev
+        env:
+          PYTHONPATH: src
         
       - name: Run Ruff Linter
         run: uvx ruff check .
