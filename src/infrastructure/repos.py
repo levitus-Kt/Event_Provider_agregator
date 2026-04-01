@@ -79,15 +79,15 @@ class EventRepository:
         )
         return total, results.scalars().all()
 
-    async def update(self, event_data: dict) -> None:
-        # Создаем объект модели из словаря (преобразовав данные)
-        event = EventModel(**event_data)
+    # async def update(self, event_data: dict) -> None:
+    #     # Создаем объект модели из словаря (преобразовав данные)
+    #     event = EventModel(**event_data)
 
-        # merge ищет запись по ID:
-        # если находит — обновляет поля, если нет — создает новую.
-        await self.session.merge(event)
-        await self.session.commit()
-        await self.session.refresh(event)
+    #     # merge ищет запись по ID:
+    #     # если находит — обновляет поля, если нет — создает новую.
+    #     await self.session.merge(event)
+    #     await self.session.commit()
+    #     await self.session.refresh(event)
 
     async def get_by_id(self, event_id: UUID) -> EventModel | None:
         result = await self.session.execute(

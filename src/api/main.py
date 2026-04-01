@@ -10,6 +10,8 @@ from uuid import UUID
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from infrastructure import client
+from src.domain.worker import BookingService
 
 from src.domain.schemas import (
     # EventListResponse,
@@ -35,7 +37,7 @@ load_dotenv()
 async def background_sync_worker():
     while True:
         try:
-            ...  # await run_sync_job()  # Ваша бизнес-логика синхронизации
+            BookingService.sync_events(client: EventsProviderClient)  # Ваша бизнес-логика синхронизации
         except Exception as e:
             print(f"Sync error: {e}")
         # Спим 24 часа
