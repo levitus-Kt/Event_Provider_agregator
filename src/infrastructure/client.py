@@ -1,4 +1,3 @@
-from typing import Optional
 from uuid import UUID
 
 import httpx
@@ -14,7 +13,7 @@ class EventsProviderClient(EventsProviderProtocol):
     async def get_events(
         self,
         changed_at: str,
-        cursor: Optional[str] = None,
+        cursor: str | None = None,
     ) -> dict:
         """Получить события"""
 
@@ -28,11 +27,10 @@ class EventsProviderClient(EventsProviderProtocol):
                 f"{self.base_url}/api/events/",
                 params=params,
                 headers=self.headers,
-                timeout=15,
+                timeout=25,
             )
             response.raise_for_status()
-            data = response.json()
-            return data
+            return response.json()
 
     async def get_event_by_id(
         self,

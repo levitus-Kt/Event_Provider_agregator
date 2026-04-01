@@ -23,6 +23,8 @@ class EventsPaginator:
             data = await self.client.get_events(
                 changed_at=self.changed_at, cursor=self._next_cursor
             )
+            print(f"DEBUG: Requesting page with cursor: {self._next_cursor}")
+            print(f"DEBUG: Next URL received from API: {data.get('next')}")
 
             self._is_first_request = False
             self._buffer = data.get("results", [])
@@ -31,10 +33,18 @@ class EventsPaginator:
             next_url = data.get("next")
             if next_url:
                 parsed_url = urlparse(next_url)
-                self._next_cursor = parse_qs(parsed_url.query).get("cursor", [None])[0]
+                new_cursor = parse_qs(parsed_url.query).get("cursor", [None])[0]
+
+                #  ЗАЩИТА ОТ ЗАЦИКЛИВАНИЯ:
+                # Если новый курсор такой же, как старый — прерываемся
+                if new_cursor == self._next_cursor:
+                    self._next_cursor = None
+                else:
+                    self._next_cursor = new_cursor
             else:
                 self._next_cursor = None
             if not self._buffer:
                 raise StopAsyncIteration
+            print(f"DEBUG: New cursor extracted: {self._next_cursor}")
 
-        return self._buffer.pop(0)
+        return self._buffer[0]
