@@ -6,15 +6,14 @@ from sqlalchemy import NullPool
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
-DB_USER = os.getenv("DB_USER")
-DB_PASS = os.getenv("DB_PASSWORD")
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("POSTGRES_USERNAME")
+DB_PASS = os.getenv("POSTGRES_PASSWORD")
+DB_HOST = os.getenv("POSTGRES_HOST")
+DB_PORT = os.getenv("POSTGRES_PORT")
+DB_NAME = os.getenv("POSTGRES_DATABASE_NAME")
 
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-# DATABASE_URL = "postgresql+asyncpg://postgres:postgres@db:5432/events_db"
 
 # Создание асинхронного двигателя
 engine = create_async_engine(DATABASE_URL, poolclass=NullPool, echo=False)
@@ -32,4 +31,7 @@ Base = declarative_base()
 
 async def get_db() -> AsyncSession:
     async with async_session() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.close()

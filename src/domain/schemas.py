@@ -36,8 +36,8 @@ class EventSchema(BaseModel):
         from_attributes = True
 
 
-class EventListResponse(BaseModel):
-    results: List[EventSchema]
+# class EventListResponse(BaseModel):
+#     results: List[EventSchema]
 
 
 class EventResponse(BaseModel):

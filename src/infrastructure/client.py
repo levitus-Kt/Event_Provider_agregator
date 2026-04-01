@@ -14,15 +14,11 @@ class EventsProviderClient(EventsProviderProtocol):
     async def get_events(
         self,
         changed_at: str,
-        # date_from: Optional[str] = None,
-        # page: Optional[int] = None,
         cursor: Optional[str] = None,
     ) -> dict:
+        """Получить события"""
+
         params = {"changed_at": changed_at}
-        # if date_from:
-        #     params["date_from"] = date_from
-        # if page:
-        #     params["page"] = page
 
         if cursor:
             params["cursor"] = cursor
@@ -32,7 +28,7 @@ class EventsProviderClient(EventsProviderProtocol):
                 f"{self.base_url}/api/events/",
                 params=params,
                 headers=self.headers,
-                timeout=10,
+                timeout=15,
             )
             response.raise_for_status()
             data = response.json()
@@ -43,6 +39,7 @@ class EventsProviderClient(EventsProviderProtocol):
         event_id: UUID,
     ) -> dict:
         """Получить информацию о событии по ID"""
+
         async with httpx.AsyncClient() as client:
             event = await client.get(
                 f"{self.base_url}/api/events/{event_id}/", headers=self.headers
@@ -55,6 +52,7 @@ class EventsProviderClient(EventsProviderProtocol):
         self,
         event_id: UUID,
     ) -> dict:
+        """Получить информацию о местах для события по ID"""
 
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -67,6 +65,8 @@ class EventsProviderClient(EventsProviderProtocol):
     async def register(
         self, event_id: UUID, first_name: str, last_name: str, email: str, seat: str
     ) -> str:
+        """Зарегистрировать пользователя на событие"""
+
         payload = {
             "first_name": first_name,
             "last_name": last_name,
@@ -83,6 +83,8 @@ class EventsProviderClient(EventsProviderProtocol):
             return response.json()["ticket_id"]
 
     async def unregister(self, event_id: UUID, ticket_id: UUID) -> dict:
+        """Отменить регистрацию пользователя на событие"""
+
         async with httpx.AsyncClient() as client:
             response = await client.request(
                 method="DELETE",

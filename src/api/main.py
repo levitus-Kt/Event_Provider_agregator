@@ -1,16 +1,18 @@
 """Главное приложение FastAPI"""
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import List
 from uuid import UUID
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# from src.app.worker.sync import run_sync_job
 from src.domain.schemas import (
-    EventListResponse,
+    # EventListResponse,
     EventResponse,
     EventSchema,
     RegistrationRequest,
@@ -22,10 +24,40 @@ from src.infrastructure.client import EventsProviderClient
 from src.infrastructure.database import get_db
 from src.infrastructure.paginator import EventsPaginator
 
+# from src.app.worker.sync import run_sync_job
+from src.infrastructure.repos import EventRepository
+
+# Глобальная переменная для задачи
+sync_task = None
 load_dotenv()
 
 
-app = FastAPI()
+async def background_sync_worker():
+    while True:
+        try:
+            await run_sync_job()  # Ваша бизнес-логика синхронизации
+        except Exception as e:
+            print(f"Sync error: {e}")
+        # Спим 24 часа
+        await asyncio.sleep(86400)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: запускаем воркер
+    global sync_task
+    sync_task = asyncio.create_task(background_sync_worker())
+    yield
+    # Shutdown: отменяем воркер
+    if sync_task:
+        sync_task.cancel()
+        try:
+            await sync_task
+        except asyncio.CancelledError:
+            pass
+
+
+app = FastAPI(lifespan=lifespan)
 
 BASE_URL = os.getenv("BASE_URL")
 API_KEY = os.getenv("API_KEY")
@@ -37,28 +69,25 @@ def get_events_client() -> EventsProviderClient:
 
 @app.get(
     "/api/events/",
-    response_model=EventListResponse,
+    response_model=List[EventSchema],
 )
 async def get_event_list(
     changed_at: str = Query(..., description="Дата для фильтрации событий"),
-    # date_from: Optional[str] = Query(
-    #     datetime.now().astimezone(UTC), description="События после указанной даты"
-    # ),
-    # page: Optional[int] = Query(1, description="Номер страницы для пагинации"),
     db: AsyncSession = Depends(get_db),
     client: EventsProviderClient = Depends(get_events_client),
-) -> EventListResponse:
+) -> List[EventSchema]:
     """Получить информацию о событиях"""
 
+    repo = EventRepository(db)
     paginator = EventsPaginator(client, changed_at)
     events = []
     async for event in paginator:
         events.append(event)
+        await repo.upsert(event)
+
     if not events:
         raise HTTPException(status_code=404, detail="Events not found")
-    return EventListResponse(
-        results=[EventSchema.model_validate(event) for event in events],
-    )
+    return [EventSchema.model_validate(event) for event in events]
 
 
 @app.get("/api/events/{event_id}", response_model=EventResponse)
@@ -69,9 +98,13 @@ async def get_event_by_id(
 ) -> EventResponse:
     """Получить информацию о событии по ID"""
 
-    event = await client.get_event_by_id(event_id=event_id)
+    repo = EventRepository(db)
+
+    event = await repo.get_by_id(event_id)
+    # event = await client.get_event_by_id(event_id=event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+
     return EventResponse.model_validate(event)
 
 
@@ -86,7 +119,10 @@ async def get_seat_list(
 ) -> SeatListResponse:
     """Получить информацию о свободных местах для события"""
 
-    event = await client.get_event_by_id(event_id=event_id)
+    repo = EventRepository(db)
+
+    event = await repo.get_by_id(event_id)
+    # event = await client.get_event_by_id(event_id=event_id)
 
     event_time = event.get("event_time")
     if "published" not in event.get("status", ""):
@@ -122,9 +158,9 @@ async def register_for_event(
     if "published" not in event.get("status", ""):
         raise HTTPException(status_code=400, detail="Event is not published")
     if datetime.now(timezone.utc) > datetime.fromisoformat(event_time):
-        raise HTTPException(status_code=400, detail="Дата не может быть в прошлом")
+        raise HTTPException(status_code=400, detail="Date is in the past")
     if datetime.now(timezone.utc) > datetime.fromisoformat(registration_deadline):
-        raise HTTPException(status_code=400, detail="Регистрация закрыта")
+        raise HTTPException(status_code=400, detail="Registration is closed")
 
     ticket_id = await client.register(
         event_id=event_id,
@@ -163,6 +199,27 @@ async def unregister_from_event(
         ticket_id=unregistration.ticket_id,
     )
     return request
+
+
+@app.post("/api/sync/trigger")
+async def sync_events(
+    db: AsyncSession = Depends(get_db),
+    client: EventsProviderClient = Depends(get_events_client),
+) -> dict:
+    """Синхронизация событий"""
+
+    events = await client.get_events("2000-01-01T22:28:35.325302+03:00")
+    for event in events:
+        await db.execute(
+            insert(Event).values(
+                id=event["id"],
+                name=event["name"],
+                description=event["description"],
+                event_time=event["event_time"],
+                status=event["status"],
+            )
+        )
+    return {"status": "ok"}
 
 
 @app.get("/api/health")
