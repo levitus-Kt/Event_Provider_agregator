@@ -205,7 +205,7 @@ async def unregister_from_event(
     return request
 
 
-@app.post("/api/sync/trigger/")
+@app.post("/api/sync/trigger")
 async def sync_events(
     db: AsyncSession = Depends(get_db),
     client: EventsProviderClient = Depends(get_events_client),
