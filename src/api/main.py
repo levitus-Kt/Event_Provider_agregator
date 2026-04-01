@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-BASE_URL = os.getenv("BASE_URL")
+BASE_URL = "https://events-provider.dev-2.python-labs.ru"
 API_KEY = os.getenv("API_KEY")
 
 
