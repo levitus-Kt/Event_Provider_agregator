@@ -31,6 +31,7 @@ sync_task = None
 load_dotenv()
 
 
+# Фоновая задача для синхронизации данных
 async def background_sync_worker():
     while True:
         try:
