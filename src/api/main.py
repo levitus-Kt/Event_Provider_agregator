@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.schemas import (
     # EventListResponse,
-    EventResponse,
     EventSchema,
     RegistrationRequest,
     RegistrationResponse,
@@ -59,9 +58,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-BASE_URL = (
-    "http://student-system-events-provider-web.student-system-events-provider.svc:8000"
-)
+BASE_URL = os.getenv("BASE_URL")
 API_KEY = os.getenv("API_KEY")
 
 
@@ -92,12 +89,12 @@ async def get_event_list(
     return [EventSchema.model_validate(event) for event in events]
 
 
-@app.get("/api/events/{event_id}", response_model=EventResponse)
+@app.get("/api/events/{event_id}", response_model=EventSchema)
 async def get_event_by_id(
     event_id: UUID,
     db: AsyncSession = Depends(get_db),
     client: EventsProviderClient = Depends(get_events_client),
-) -> EventResponse:
+) -> EventSchema:
     """Получить информацию о событии по ID"""
 
     repo = EventRepository(db)
@@ -107,7 +104,7 @@ async def get_event_by_id(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    return EventResponse.model_validate(event)
+    return EventSchema.model_validate(event)
 
 
 @app.get(
@@ -123,20 +120,11 @@ async def get_seat_list(
 
     repo = EventRepository(db)
 
-    event = await repo.get_by_id(event_id)
-    # event = await client.get_event_by_id(event_id=event_id)
-
-    event_time = event.get("event_time")
-    if "published" not in event.get("status", ""):
-        raise HTTPException(status_code=400, detail="Event is not published")
-    if datetime.now(timezone.utc) > datetime.fromisoformat(event_time):
-        raise HTTPException(status_code=400, detail="Дата не может быть в прошлом")
-
-    data = await client.get_seats(event_id=event_id)
-    if not data:
+    seats = await repo.get_seat_list(event_id)
+    if not seats:
         raise HTTPException(status_code=404, detail="Seats not found")
     return SeatListResponse(
-        seats=[seat for seat in data.get("seats", [])],
+        seats=[seat for seat in seats],
     )
 
 

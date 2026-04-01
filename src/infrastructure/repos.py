@@ -1,7 +1,8 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +15,32 @@ class EventRepository:
 
     async def upsert(self, event_data: dict):
         # Логика Upsert для площадки
+        def ensure_datetime(value):
+            # Если это уже datetime, возвращаем как есть
+            if isinstance(value, datetime):
+                return value
+            # Если это строка, преобразуем
+            if isinstance(value, str):
+                return datetime.fromisoformat(value)
+            return value
+
+        # Применение в репозитории или перед upsert:
+        event_data["place"]["changed_at"] = ensure_datetime(
+            event_data["place"].get("changed_at")
+        )
+        event_data["place"]["created_at"] = ensure_datetime(
+            event_data["place"].get("created_at")
+        )
+        event_data["event_time"] = ensure_datetime(event_data.get("event_time"))
+        event_data["registration_deadline"] = ensure_datetime(
+            event_data.get("registration_deadline")
+        )
+        event_data["changed_at"] = ensure_datetime(event_data.get("changed_at"))
+        event_data["created_at"] = ensure_datetime(event_data.get("created_at"))
+        event_data["status_changed_at"] = ensure_datetime(
+            event_data.get("status_changed_at")
+        )
+
         place_stmt = (
             insert(PlaceModel)
             .values(**event_data["place"])
@@ -25,8 +52,8 @@ class EventRepository:
         evt_copy = event_data.copy()
         evt_copy["place_id"] = evt_copy.pop("place")["id"]
         # Удаляем поля, которых нет в нашей БД, но есть в API
-        for extra in ["changed_at", "created_at", "status_changed_at"]:
-            evt_copy.pop(extra, None)
+        # for extra in ["changed_at", "created_at", "status_changed_at"]:
+        #     evt_copy.pop(extra, None)
 
         event_stmt = (
             insert(EventModel)
@@ -34,6 +61,8 @@ class EventRepository:
             .on_conflict_do_update(index_elements=["id"], set_=evt_copy)
         )
         await self.session.execute(event_stmt)
+        await self.session.flush()
+        # await self.session.commit()
 
     async def get_paginated_events(self, date_from=None, page=1, size=20):
         query = select(EventModel)
@@ -65,6 +94,25 @@ class EventRepository:
             select(EventModel).where(EventModel.id == event_id)
         )
         return result.scalars().first()
+
+    async def get_seat_list(self, event_id: UUID) -> list:
+        event = await self.get_by_id(event_id)
+        if not event:
+            return []
+
+        now = datetime.now(timezone.utc)
+        result = await self.session.execute(
+            select(PlaceModel.seats_pattern)
+            .join(EventModel, EventModel.place_id == PlaceModel.id)
+            .where(
+                and_(
+                    EventModel.id == event_id,
+                    EventModel.status == "published",
+                    EventModel.event_time > now,
+                )
+            )
+        )
+        return result.scalar_one_or_none()
 
 
 class CreateTicketRepository:

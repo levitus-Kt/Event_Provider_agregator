@@ -16,6 +16,8 @@ class PlaceModel(Base):
     city: Mapped[str] = mapped_column(String)
     address: Mapped[str] = mapped_column(String)
     seats_pattern: Mapped[str] = mapped_column(String)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     events: Mapped[list["EventModel"]] = relationship(back_populates="place")
 

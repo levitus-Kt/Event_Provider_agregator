@@ -1,13 +1,5 @@
-import os
-import sys
-from pathlib import Path
-
-# Добавляем корень проекта и папку src в пути поиска модулей
-sys.path.append(str(Path(__file__).parent.parent))
-sys.path.append(str(Path(__file__).parent.parent / "src"))
-
-# sys.path.insert(0, os.path.join(os.getcwd(), "src"))
 import asyncio
+import os
 from logging.config import fileConfig
 
 from dotenv import load_dotenv
@@ -16,7 +8,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from src.infrastructure.models import Base
+from src.domain.models import Base
 
 load_dotenv()
 
