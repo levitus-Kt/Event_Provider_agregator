@@ -21,7 +21,7 @@ class EventRepository:
                 return value
             # Если это строка, преобразуем
             if isinstance(value, str):
-                return datetime.fromisoformat(value)
+                return datetime.fromisoformat(value.replace("Z", "+03:00"))
             return value
 
         # Применение в репозитории или перед upsert:

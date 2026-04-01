@@ -10,8 +10,6 @@ from uuid import UUID
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from infrastructure import client
-from src.domain.worker import BookingService
 
 from src.domain.schemas import (
     # EventListResponse,
@@ -21,6 +19,7 @@ from src.domain.schemas import (
     SeatListResponse,
     UnregistrationRequest,
 )
+from src.domain.worker import BookingService
 from src.infrastructure.client import EventsProviderClient
 from src.infrastructure.database import get_db
 from src.infrastructure.paginator import EventsPaginator
@@ -32,12 +31,14 @@ from src.infrastructure.repos import EventRepository
 sync_task = None
 load_dotenv()
 
+sync = BookingService.sync_events
+
 
 # Фоновая задача для синхронизации данных
 async def background_sync_worker():
     while True:
         try:
-            BookingService.sync_events(client: EventsProviderClient)  # Ваша бизнес-логика синхронизации
+            ...  # sync()
         except Exception as e:
             print(f"Sync error: {e}")
         # Спим 24 часа
@@ -207,7 +208,7 @@ async def sync_events(
     repo = EventRepository(db)
     paginator = EventsPaginator(client, changed_at)
     async for event in paginator:
-        await repo.update(event)
+        await repo.upsert(event)
 
     return {"status": "ok"}
 
