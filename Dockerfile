@@ -4,12 +4,13 @@ FROM cr.yandex/mirror/python:3.11-slim
 RUN addgroup --system --gid 1000 appuser && \
     adduser --system --uid 1000 --ingroup appuser appuser
 
-WORKDIR /src
 
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

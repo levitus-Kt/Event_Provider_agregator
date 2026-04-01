@@ -35,7 +35,7 @@ load_dotenv()
 async def background_sync_worker():
     while True:
         try:
-            await run_sync_job()  # Ваша бизнес-логика синхронизации
+            ...  # await run_sync_job()  # Ваша бизнес-логика синхронизации
         except Exception as e:
             print(f"Sync error: {e}")
         # Спим 24 часа
@@ -205,20 +205,15 @@ async def unregister_from_event(
 async def sync_events(
     db: AsyncSession = Depends(get_db),
     client: EventsProviderClient = Depends(get_events_client),
+    changed_at: str = Query(..., description="Дата для фильтрации событий"),
 ) -> dict:
     """Синхронизация событий"""
 
-    events = await client.get_events("2000-01-01T22:28:35.325302+03:00")
-    for event in events:
-        await db.execute(
-            insert(Event).values(
-                id=event["id"],
-                name=event["name"],
-                description=event["description"],
-                event_time=event["event_time"],
-                status=event["status"],
-            )
-        )
+    repo = EventRepository(db)
+    paginator = EventsPaginator(client, changed_at)
+    async for event in paginator:
+        await repo.update(event)
+
     return {"status": "ok"}
 
 

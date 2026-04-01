@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,21 +50,22 @@ class EventRepository:
         )
         return total, results.scalars().all()
 
-    # async def upsert(self, event_data: dict) -> None:
-    #     # Создаем объект модели из словаря (преобразовав данные)
-    #     event = EventModel(**event_data)
+    async def update(self, event_data: dict) -> None:
+        # Создаем объект модели из словаря (преобразовав данные)
+        event = EventModel(**event_data)
 
-    #     # merge ищет запись по ID:
-    #     # если находит — обновляет поля, если нет — создает новую.
-    #     await self.session.merge(event)
-    #     await self.session.commit()
-    #     await self.session.refresh(event)
+        # merge ищет запись по ID:
+        # если находит — обновляет поля, если нет — создает новую.
+        await self.session.merge(event)
+        await self.session.commit()
+        await self.session.refresh(event)
 
     async def get_by_id(self, event_id: UUID) -> EventModel | None:
         result = await self.session.execute(
             select(EventModel).where(EventModel.id == event_id)
         )
         return result.scalars().first()
+
 
 class CreateTicketRepository:
     def __init__(self, session: AsyncSession):
