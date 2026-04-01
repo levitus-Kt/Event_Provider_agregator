@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import and_, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from src.domain.models import EventModel, PlaceModel
 
@@ -65,7 +66,7 @@ class EventRepository:
         # await self.session.commit()
 
     async def get_paginated_events(self, date_from=None, page=1, size=20):
-        query = select(EventModel)
+        query = select(EventModel).options(joinedload(EventModel.place))
         if date_from:
             query = query.where(EventModel.event_time >= date_from)
 
@@ -77,7 +78,7 @@ class EventRepository:
         results = await self.session.execute(
             query.offset((page - 1) * size).limit(size)
         )
-        return total, results.scalars().all()
+        return total, list(results.scalars().all())
 
     # async def update(self, event_data: dict) -> None:
     #     # Создаем объект модели из словаря (преобразовав данные)

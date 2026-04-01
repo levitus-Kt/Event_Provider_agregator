@@ -36,7 +36,7 @@ class EventModel(Base):
     status_changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
     place_id: Mapped[UUID] = mapped_column(ForeignKey("places.id"))
-    place: Mapped["PlaceModel"] = relationship(back_populates="events", lazy="joined")
+    place: Mapped["PlaceModel"] = relationship(back_populates="events")
 
 
 class SyncMetadata(Base):

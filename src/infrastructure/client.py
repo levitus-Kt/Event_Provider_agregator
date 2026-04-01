@@ -2,10 +2,8 @@ from uuid import UUID
 
 import httpx
 
-from src.domain.interfaces import EventsProviderProtocol
 
-
-class EventsProviderClient(EventsProviderProtocol):
+class EventsProviderClient:
     def __init__(self, base_url: str, api_key: str):
         self.base_url = base_url.rstrip("/")
         self.headers = {"x-api-key": api_key, "Content-Type": "application/json"}
@@ -92,3 +90,6 @@ class EventsProviderClient(EventsProviderProtocol):
             )
             response.raise_for_status()
             return {"success": True}
+
+    async def events(self, changed_at: str, cursor: str | None = None) -> dict:
+        raise NotImplementedError

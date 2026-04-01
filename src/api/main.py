@@ -4,11 +4,11 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import List
+from typing import Optional
 from uuid import UUID
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.schemas import (
@@ -19,7 +19,6 @@ from src.domain.schemas import (
     SeatListResponse,
     UnregistrationRequest,
 )
-from src.domain.worker import BookingService
 from src.infrastructure.client import EventsProviderClient
 from src.infrastructure.database import get_db
 from src.infrastructure.paginator import EventsPaginator
@@ -31,14 +30,25 @@ from src.infrastructure.repos import EventRepository
 sync_task = None
 load_dotenv()
 
-sync = BookingService.sync_events
+
+BASE_URL = os.getenv("BASE_URL")
+API_KEY = os.getenv("API_KEY")
+
+
+def get_events_client(request: Request) -> EventsProviderClient:
+    return request.app.state.events_client
 
 
 # Фоновая задача для синхронизации данных
-async def background_sync_worker():
+async def background_sync_worker(db: AsyncSession):
+    changed_at = "2000-01-01T00:00:00+03:00"
     while True:
         try:
-            ...  # sync()
+            paginator = EventsPaginator(app.state.events_client, changed_at)
+            repo = EventRepository(db)
+            async for event in paginator:
+                await repo.upsert(event)
+            await db.commit()
         except Exception as e:
             print(f"Sync error: {e}")
         # Спим 24 часа
@@ -46,10 +56,14 @@ async def background_sync_worker():
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(
+    app: FastAPI,
+):
+    os.system("alembic upgrade head")
     # Startup: запускаем воркер
     global sync_task
-    sync_task = asyncio.create_task(background_sync_worker())
+    app.state.events_client = EventsProviderClient(BASE_URL, API_KEY)
+    sync_task = asyncio.create_task(background_sync_worker(db=Depends(get_db)))
     yield
     # Shutdown: отменяем воркер
     if sync_task:
@@ -62,35 +76,31 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-BASE_URL = os.getenv("BASE_URL")
-API_KEY = os.getenv("API_KEY")
-
-
-def get_events_client() -> EventsProviderClient:
-    return EventsProviderClient(base_url=BASE_URL, api_key=API_KEY)
-
 
 @app.get(
     "/api/events/",
-    response_model=List[EventSchema],
 )
 async def get_event_list(
-    changed_at: str = Query(..., description="Дата для фильтрации событий"),
     db: AsyncSession = Depends(get_db),
-    client: EventsProviderClient = Depends(get_events_client),
-) -> List[EventSchema]:
-    """Получить информацию о событиях"""
+    date_from: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+) -> dict:
+    """Получить информацию о событиях из БД"""
 
     repo = EventRepository(db)
-    paginator = EventsPaginator(client, changed_at)
-    events = []
-    async for event in paginator:
-        events.append(event)
-        await repo.upsert(event)
+
+    total, events = await repo.get_paginated_events(date_from, page, page_size)
 
     if not events:
         raise HTTPException(status_code=404, detail="Events not found")
-    return [EventSchema.model_validate(event) for event in events]
+    # return [EventSchema.model_validate(event) for event in events]
+    return {
+        "count": total,
+        "results": [EventSchema.model_validate(event) for event in events],
+        "next": f"/api/events?page={page + 1}" if total > page * page_size else None,
+        "previous": f"/api/events?page={page - 1}" if page > 1 else None,
+    }
 
 
 @app.get("/api/events/{event_id}", response_model=EventSchema)
@@ -207,7 +217,10 @@ async def sync_events(
 
     repo = EventRepository(db)
     paginator = EventsPaginator(client, changed_at)
+    events = []
     async for event in paginator:
+        events.append(event)
+    for event in events:
         await repo.upsert(event)
 
     return {"status": "ok"}
