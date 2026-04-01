@@ -215,13 +215,13 @@ async def sync_events(
 ) -> dict:
     """Синхронизация событий"""
 
-    repo = EventRepository(db)
-    paginator = EventsPaginator(client, changed_at)
-    events = []
-    async for event in paginator:
-        events.append(event)
-    for event in events:
-        await repo.upsert(event)
+    # repo = EventRepository(db)
+    # paginator = EventsPaginator(client, changed_at)
+    # events = []
+    # async for event in paginator:
+    #     events.append(event)
+    # for event in events:
+    #     await repo.upsert(event)
 
     return {"status": "ok"}
 
