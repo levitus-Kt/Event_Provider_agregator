@@ -59,7 +59,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-BASE_URL = "https://events-provider.dev-2.python-labs.ru"
+BASE_URL = (
+    "http://student-system-events-provider-web.student-system-events-provider.svc:8000"
+)
 API_KEY = os.getenv("API_KEY")
 
 
@@ -201,11 +203,13 @@ async def unregister_from_event(
     return request
 
 
-@app.post("/api/sync/trigger")
+@app.post("/api/sync/trigger/")
 async def sync_events(
     db: AsyncSession = Depends(get_db),
     client: EventsProviderClient = Depends(get_events_client),
-    changed_at: str = Query(..., description="Дата для фильтрации событий"),
+    changed_at: str = Query(
+        "2020-01-01T22:28:35.325302+03:00", description="Дата для фильтрации событий"
+    ),
 ) -> dict:
     """Синхронизация событий"""
 
