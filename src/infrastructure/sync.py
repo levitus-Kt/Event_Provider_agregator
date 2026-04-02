@@ -29,7 +29,8 @@ class SyncService:
                 await self.repo.upsert(event_data)
         # Сохраняем метаданные синхронизации (опционально)
         # await self.repo.update_sync_metadata(
-        #     last_sync_time=datetime.now(), last_changed_at=changed_at, status="success"
+        #     last_sync_time=datetime.now(),
+        #     last_changed_at=changed_at, status="success"
         # )
 
         print(f"Sync finished. Processed {synced_count} published events.")
