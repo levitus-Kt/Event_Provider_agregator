@@ -5,7 +5,11 @@ from src.infrastructure.client import EventsProviderClient
 
 
 class EventsPaginator:
-    def __init__(self, client: EventsProviderClient, changed_at: str):
+    def __init__(
+        self,
+        client: EventsProviderClient,
+        changed_at: str = "2000-01-01T00:00:00+03:00",
+    ):
         self.client = client
         self.changed_at = changed_at
         self._next_cursor: str | None = None
@@ -23,8 +27,6 @@ class EventsPaginator:
             data = await self.client.get_events(
                 changed_at=self.changed_at, cursor=self._next_cursor
             )
-            print(f"DEBUG: Requesting page with cursor: {self._next_cursor}")
-            print(f"DEBUG: Next URL received from API: {data.get('next')}")
 
             self._is_first_request = False
             self._buffer = data.get("results", [])
@@ -45,6 +47,5 @@ class EventsPaginator:
                 self._next_cursor = None
             if not self._buffer:
                 raise StopAsyncIteration
-            print(f"DEBUG: New cursor extracted: {self._next_cursor}")
 
         return self._buffer[0]

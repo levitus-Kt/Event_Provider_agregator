@@ -8,7 +8,7 @@ from typing import Optional
 from uuid import UUID
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.schemas import (
@@ -22,9 +22,8 @@ from src.domain.schemas import (
 from src.infrastructure.client import EventsProviderClient
 from src.infrastructure.database import get_db
 from src.infrastructure.paginator import EventsPaginator
-
-# from src.app.worker.sync import run_sync_job
 from src.infrastructure.repos import EventRepository
+from src.infrastructure.sync import SyncService
 
 # Глобальная переменная для задачи
 sync_task = None
@@ -138,7 +137,7 @@ async def get_seat_list(
     if not seats:
         raise HTTPException(status_code=404, detail="Seats not found")
     return SeatListResponse(
-        seats=[seat for seat in seats],
+        seats=seats,
     )
 
 
@@ -155,7 +154,9 @@ async def register_for_event(
 ) -> RegistrationResponse:
     """Зарегистрироваться на событие"""
 
-    event = await client.get_event_by_id(event_id=event_id)
+    repo = EventRepository(db)
+
+    event = await repo.get_by_id(event_id=event_id)
     event_time = event.get("event_time")
     registration_deadline = event.get("registration_deadline")
 
@@ -173,6 +174,16 @@ async def register_for_event(
         email=registration.email,
         seat=registration.seat,
     )
+
+    await repo.register(
+        event_id=event_id,
+        first_name=registration.first_name,
+        last_name=registration.last_name,
+        email=registration.email,
+        seat=registration.seat,
+        ticket_id=ticket_id,
+    )
+
     if not ticket_id:
         raise HTTPException(status_code=403, detail="Registration failed")
     return RegistrationResponse(
@@ -192,6 +203,8 @@ async def unregister_from_event(
 ) -> dict:
     """Отменить регистрацию на событие"""
 
+    repo = EventRepository(db)
+
     event = await client.get_event_by_id(event_id=event_id)
     event_time = event.get("event_time")
 
@@ -202,28 +215,35 @@ async def unregister_from_event(
         event_id=event_id,
         ticket_id=unregistration.ticket_id,
     )
+
+    await repo.unregister(
+        event_id=event_id,
+        ticket_id=unregistration.ticket_id,
+    )
     return request
 
 
-@app.post("/api/sync/trigger")
+@app.post("/api/sync/trigger/")
 async def sync_events(
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     client: EventsProviderClient = Depends(get_events_client),
-    changed_at: str = Query(
-        "2020-01-01T22:28:35.325302+03:00", description="Дата для фильтрации событий"
-    ),
 ) -> dict:
-    """Синхронизация событий"""
+    """
+    Запуск ручной синхронизации.
+    Используем BackgroundTasks, чтобы не заставлять пользователя ждать
+    завершения долгого процесса по HTTP.
+    """
 
-    # repo = EventRepository(db)
-    # paginator = EventsPaginator(client, changed_at)
-    # events = []
-    # async for event in paginator:
-    #     events.append(event)
-    # for event in events:
-    #     await repo.upsert(event)
+    repo = EventRepository(db)
+    service = SyncService(client, repo)
 
-    return {"status": "ok"}
+    background_tasks.add_task(service.perform_sync)
+
+    return {
+        "status": "sync_started",
+        "message": "Процесс синхронизации запущен в фоновом режиме",
+    }
 
 
 @app.get("/api/health")

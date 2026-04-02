@@ -36,8 +36,11 @@ class EventSchema(BaseModel):
         from_attributes = True
 
 
-# class EventListResponse(BaseModel):
-#     results: List[EventSchema]
+class EventListResponse(BaseModel):
+    count: int
+    next: Optional[str]
+    previous: Optional[str]
+    results: List[EventSchema]
 
 
 class EventResponse(BaseModel):
@@ -56,16 +59,16 @@ class EventResponse(BaseModel):
 class RegistrationRequest(BaseModel):
     first_name: str
     last_name: str
-    email: EmailStr
     seat: str
+    email: EmailStr
 
 
 class RegistrationResponse(BaseModel):
-    ticket_id: UUID
+    ticket_id: str
 
 
 class UnregistrationRequest(BaseModel):
-    ticket_id: UUID
+    ticket_id: str
 
 
 class SeatListResponse(BaseModel):

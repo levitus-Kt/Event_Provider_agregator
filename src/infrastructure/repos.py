@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from src.domain.models import EventModel, PlaceModel
+from src.domain.models import EventModel, PlaceModel, RegistrationModel
 
 
 class EventRepository:
@@ -42,28 +42,66 @@ class EventRepository:
             event_data.get("status_changed_at")
         )
 
+        place_data = event_data["place"]
         place_stmt = (
             insert(PlaceModel)
-            .values(**event_data["place"])
-            .on_conflict_do_update(index_elements=["id"], set_=event_data["place"])
+            .values(
+                # **event_data["place"]
+                id=place_data["id"],
+                name=place_data["name"],
+                city=place_data["city"],
+                address=place_data["address"],
+                seats_pattern=place_data["seats_pattern"],
+                changed_at=place_data["changed_at"],
+                created_at=place_data["created_at"],
+            )
+            .on_conflict_do_update(
+                index_elements=["id"],
+                # event_data["place"],
+                set_={
+                    "name": place_data["name"],
+                    "city": place_data["city"],
+                    "address": place_data["address"],
+                    "seats_pattern": place_data["seats_pattern"],
+                    "changed_at": place_data["changed_at"],
+                    "created_at": place_data["created_at"],
+                },
+            )
         )
         await self.session.execute(place_stmt)
 
         # Логика Upsert для события
-        evt_copy = event_data.copy()
-        evt_copy["place_id"] = evt_copy.pop("place")["id"]
-        # Удаляем поля, которых нет в нашей БД, но есть в API
-        # for extra in ["changed_at", "created_at", "status_changed_at"]:
-        #     evt_copy.pop(extra, None)
 
         event_stmt = (
             insert(EventModel)
-            .values(**evt_copy)
-            .on_conflict_do_update(index_elements=["id"], set_=evt_copy)
+            .values(
+                # **event_data
+                id=event_data["id"],
+                name=event_data["name"],
+                event_time=event_data["event_time"],
+                registration_deadline=event_data["registration_deadline"],
+                status=event_data["status"],
+                number_of_visitors=event_data["number_of_visitors"],
+                place_id=place_data["id"],
+            )
+            .on_conflict_do_update(
+                index_elements=["id"],
+                # event_data,
+                set_={
+                    "name": event_data["name"],
+                    "event_time": event_data["event_time"],
+                    "status": event_data["status"],
+                    "number_of_visitors": event_data["number_of_visitors"],
+                    "registration_deadline": event_data["registration_deadline"],
+                    "changed_at": event_data["changed_at"],
+                    "created_at": event_data["created_at"],
+                    "status_changed_at": event_data["status_changed_at"],
+                },
+            )
         )
         await self.session.execute(event_stmt)
-        await self.session.flush()
-        # await self.session.commit()
+        # await self.session.flush()
+        await self.session.commit()
 
     async def get_paginated_events(self, date_from=None, page=1, size=20):
         query = select(EventModel).options(joinedload(EventModel.place))
@@ -92,7 +130,9 @@ class EventRepository:
 
     async def get_by_id(self, event_id: UUID) -> EventModel | None:
         result = await self.session.execute(
-            select(EventModel).where(EventModel.id == event_id)
+            select(EventModel)
+            .options(joinedload(EventModel.place))
+            .where(EventModel.id == event_id)
         )
         return result.scalars().first()
 
@@ -113,7 +153,62 @@ class EventRepository:
                 )
             )
         )
-        return result.scalar_one_or_none()
+        seats = result.scalars().all()[0].split(",") if result else []
+        return seats
+
+    async def register(
+        self,
+        event_id: UUID,
+        first_name: str,
+        last_name: str,
+        email: str,
+        seat: str,
+        ticket_id: str,
+    ):
+        # Логика регистрации билета в БД (например, сохранение информации о регистрации)
+
+        query = (
+            insert(RegistrationModel)
+            .values(
+                event_id=event_id,
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                seat=seat,
+                ticket_id=ticket_id,
+            )
+            .on_conflict_do_update(
+                index_elements=["id"],
+                set_={
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "email": email,
+                    "seat": seat,
+                    "ticket_id": ticket_id,
+                },
+            )
+        )
+        await self.session.execute(query)
+
+    async def get_registration_by_ticket_id(
+        self, ticket_id: str
+    ) -> RegistrationModel | None:
+        result = await self.session.execute(
+            select(RegistrationModel).where(RegistrationModel.ticket_id == ticket_id)
+        )
+        return result.scalars().first()
+
+    async def unregister(self, event_id: UUID, ticket_id: str):
+        query = select(RegistrationModel).where(
+            and_(
+                RegistrationModel.event_id == event_id,
+                RegistrationModel.ticket_id == ticket_id,
+            )
+        )
+        registration = (await self.session.execute(query)).scalars().first()
+        if registration:
+            await self.session.delete(registration)
+            await self.session.commit()
 
 
 class CreateTicketRepository:
@@ -121,7 +216,7 @@ class CreateTicketRepository:
         self.session = session
 
     async def execute(
-        self, event_id: str, first_name: str, last_name: str, email: str, seat: str
+        self, event_id: UUID, first_name: str, last_name: str, email: str, seat: str
     ) -> str:
         # Валидация в нашей БД
         event = await EventRepository(self.session).get_by_id(event_id)

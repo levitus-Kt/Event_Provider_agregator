@@ -1,6 +1,6 @@
 """Модели в таблице"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import UUID, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -31,12 +31,30 @@ class EventModel(Base):
     registration_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String)
     number_of_visitors: Mapped[int] = mapped_column(Integer, default=0)
-    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    status_changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    status_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     place_id: Mapped[UUID] = mapped_column(ForeignKey("places.id"))
     place: Mapped["PlaceModel"] = relationship(back_populates="events")
+
+
+class RegistrationModel(Base):
+    __tablename__ = "registrations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("events.id"))
+    first_name: Mapped[str] = mapped_column(String)
+    last_name: Mapped[str] = mapped_column(String)
+    email: Mapped[str] = mapped_column(String)
+    seat: Mapped[str] = mapped_column(String)
+    ticket_id: Mapped[str] = mapped_column(String)
 
 
 class SyncMetadata(Base):

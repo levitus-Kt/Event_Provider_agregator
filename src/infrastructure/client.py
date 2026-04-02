@@ -25,6 +25,7 @@ class EventsProviderClient:
                 f"{self.base_url}/api/events/",
                 params=params,
                 headers=self.headers,
+                follow_redirects=True,
                 timeout=25,
             )
             response.raise_for_status()
@@ -78,7 +79,7 @@ class EventsProviderClient:
             response.raise_for_status()
             return response.json()["ticket_id"]
 
-    async def unregister(self, event_id: UUID, ticket_id: UUID) -> dict:
+    async def unregister(self, event_id: UUID, ticket_id: str) -> dict:
         """Отменить регистрацию пользователя на событие"""
 
         async with httpx.AsyncClient() as client:

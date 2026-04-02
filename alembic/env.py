@@ -14,7 +14,7 @@ load_dotenv()
 
 database_url = os.getenv(
     "POSTGRES_CONNECTION_STRING",
-    "postgresql+asyncpg://postgres:postgres@db:5432/events_db",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/events_db",
 )
 
 # this is the Alembic Config object, which provides
