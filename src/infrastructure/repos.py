@@ -153,7 +153,9 @@ class EventRepository:
                 )
             )
         )
-        seats = result.scalars().all()[0].split(",") if result else []
+        seats = result.scalars().all()
+        seats = seats[0].split(",") if len(seats) > 0 else []
+        print("seats", seats)
         return seats
 
     async def register(

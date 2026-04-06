@@ -2,8 +2,10 @@ from uuid import UUID
 
 import httpx
 
+from src.domain.interfaces import EventsProviderProtocol
 
-class EventsProviderClient:
+
+class EventsProviderClient(EventsProviderProtocol):
     def __init__(self, base_url: str, api_key: str):
         self.base_url = base_url.rstrip("/")
         self.headers = {"x-api-key": api_key, "Content-Type": "application/json"}
@@ -11,7 +13,7 @@ class EventsProviderClient:
     async def get_events(
         self,
         changed_at: str,
-        cursor: str | None = None,
+        cursor: str = None,
     ) -> dict:
         """Получить события"""
 
@@ -70,13 +72,19 @@ class EventsProviderClient:
             "seat": seat,
             "email": email,
         }
+        print(f"DEBUG: Registering for event {event_id} at seat '{seat}'")
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{self.base_url}/api/events/{event_id}/register/",
                 json=payload,
                 headers=self.headers,
             )
-            response.raise_for_status()
+            print(response.json())
+            # try:
+            #     response.raise_for_status()
+            # except httpx.HTTPStatusError as e:
+            #     if "404" in str(e):
+            #         raise HTTPException(404, detail=str(e).split("\n")[0])
             return response.json()["ticket_id"]
 
     async def unregister(self, event_id: UUID, ticket_id: str) -> dict:

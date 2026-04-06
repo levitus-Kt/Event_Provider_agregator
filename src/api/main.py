@@ -35,15 +35,18 @@ API_KEY = os.getenv("API_KEY")
 
 
 def get_events_client(request: Request) -> EventsProviderClient:
-    return request.app.state.events_client
+    return EventsProviderClient(BASE_URL, API_KEY)
 
 
 # Фоновая задача для синхронизации данных
-async def background_sync_worker(db: AsyncSession):
-    changed_at = "2000-01-01T00:00:00+03:00"
+async def background_sync_worker(
+    db: AsyncSession = Depends(get_db),
+    client: EventsProviderClient = Depends(get_events_client),
+):
+    changed_at = "2000-01-01"
     while True:
         try:
-            paginator = EventsPaginator(app.state.events_client, changed_at)
+            paginator = EventsPaginator(client, changed_at)
             repo = EventRepository(db)
             async for event in paginator:
                 await repo.upsert(event)
@@ -55,13 +58,11 @@ async def background_sync_worker(db: AsyncSession):
 
 
 @asynccontextmanager
-async def lifespan(
-    app: FastAPI,
-):
+async def lifespan(app: FastAPI):
     os.system("alembic upgrade head")
     # Startup: запускаем воркер
     global sync_task
-    app.state.events_client = EventsProviderClient(BASE_URL, API_KEY)
+    # app.state.events_client = EventsProviderClient(BASE_URL, API_KEY)
     sync_task = asyncio.create_task(background_sync_worker(db=Depends(get_db)))
     yield
     # Shutdown: отменяем воркер
@@ -73,7 +74,7 @@ async def lifespan(
             pass
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 
 @app.get(
@@ -156,16 +157,7 @@ async def register_for_event(
 
     repo = EventRepository(db)
 
-    event = await repo.get_by_id(event_id=event_id)
-    event_time = event.get("event_time")
-    registration_deadline = event.get("registration_deadline")
-
-    if "published" not in event.get("status", ""):
-        raise HTTPException(status_code=400, detail="Event is not published")
-    if datetime.now(timezone.utc) > datetime.fromisoformat(event_time):
-        raise HTTPException(status_code=400, detail="Date is in the past")
-    if datetime.now(timezone.utc) > datetime.fromisoformat(registration_deadline):
-        raise HTTPException(status_code=400, detail="Registration is closed")
+    # event = await repo.get_by_id(event_id=event_id)
 
     ticket_id = await client.register(
         event_id=event_id,
@@ -237,8 +229,8 @@ async def sync_events(
 
     repo = EventRepository(db)
     service = SyncService(client, repo)
-
-    background_tasks.add_task(service.perform_sync)
+    await service.perform_sync()
+    # background_tasks.add_task(service.perform_sync)
 
     return {
         "status": "sync_started",
